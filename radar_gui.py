@@ -131,7 +131,7 @@ class AudioRadarHUD:
             pygame_flags |= pygame.SRCALPHA
             
         self.screen = pygame.display.set_mode(window_size, pygame_flags)
-        pygame.display.set_caption("Audio Radar HUD")
+        pygame.display.set_caption("AudioRadar-HUD - Always-On-Top")
         
         # High performance settings
         pygame.event.set_blocked([pygame.MOUSEMOTION, pygame.JOYAXISMOTION, 
@@ -197,11 +197,42 @@ class AudioRadarHUD:
         try:
             # Get window handle - improved method
             pygame.display.flip()  # Ensure window is created
-            time.sleep(0.1)  # Give time for window creation
+            time.sleep(0.2)  # Give more time for window creation
             
-            self.hwnd = pygame.display.get_wm_info()["window"]
+            try:
+                wm_info = pygame.display.get_wm_info()
+                self.hwnd = wm_info.get("window")
+                if not self.hwnd:
+                    print("⚠️ Could not get window handle, trying alternative method...")
+                    # Alternative: Find window by title
+                    import ctypes
+                    from ctypes import wintypes
+                    
+                    def enum_windows_callback(hwnd, windows):
+                        if ctypes.windll.user32.IsWindowVisible(hwnd):
+                            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+                            buff = ctypes.create_unicode_buffer(length + 1)
+                            ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+                            if "AudioRadar" in buff.value or "pygame" in buff.value:
+                                windows.append(hwnd)
+                        return True
+                    
+                    windows = []
+                    EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+                    ctypes.windll.user32.EnumWindows(EnumWindowsProc(enum_windows_callback), id(windows))
+                    
+                    if windows:
+                        self.hwnd = windows[0]
+                        print(f"✅ Found window handle via enumeration: {self.hwnd}")
+                    else:
+                        print("❌ Could not find window handle")
+                        return
+                        
+            except Exception as e:
+                print(f"❌ Error getting window handle: {e}")
+                return
             
-            if self.always_on_top:
+            if self.always_on_top and self.hwnd:
                 # ULTRA AGGRESSIVE: Multiple topmost methods
                 HWND_TOPMOST = -1
                 SWP_NOMOVE = 0x0002
@@ -210,10 +241,11 @@ class AudioRadarHUD:
                 SWP_NOACTIVATE = 0x0010
                 
                 # Method 1: SetWindowPos
-                ctypes.windll.user32.SetWindowPos(
+                result = ctypes.windll.user32.SetWindowPos(
                     self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
                 )
+                print(f"SetWindowPos result: {result}")
                 
                 # Method 2: Extended window style
                 GWL_EXSTYLE = -20
@@ -235,7 +267,7 @@ class AudioRadarHUD:
                                 self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
                             )
-                            time.sleep(0.5)  # Check every 500ms
+                            time.sleep(0.3)  # Check every 300ms
                         except:
                             break
                 
