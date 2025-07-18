@@ -32,23 +32,21 @@ AudioRadar-HUD is a professional-grade, anti-cheat-safe tactical audio visualiza
 
 ### Method 1: Batch Launcher (Recommended)
 ```bash
-# Double-click to launch
+# Double-click to launch with config.json settings
 LAUNCH_RADAR.bat
 ```
 
-### Method 2: Production Launcher
+### Method 2: Direct Launch
 ```bash
-# Basic launch
+# Launch with config.json settings
 python hud_launcher.py
 
-# With specific device
-python hud_launcher.py --device 38 --fps 120 --always-on-top
-
-# Full customization
-python hud_launcher.py --device 38 --fps 144 --frameless --transparent --performance
+# Override specific settings if needed
+python hud_launcher.py --device 38 --fps 144
+python hud_launcher.py --debug --transparent
 ```
 
-### Method 3: System Launcher
+### Method 3: System Launcher (Advanced)
 ```bash
 python audio_radar_system.py --device 38 --fps 120
 ```
@@ -81,12 +79,24 @@ python audio_radar_system.py --device 38 --fps 120
 - **ESC**: Exit AudioRadar
 
 ### Configuration File (`config.json`)
+All settings are now controlled by config.json - the single source of truth:
+
 ```json
 {
+  "audio_device": null,
+  "audio_sample_rate": 44100,
+  "audio_block_size": 1024,
   "hud_fps": 120,
+  "hud_width": 450,
+  "hud_height": 450,
+  "hud_scale": 1.0,
+  "hud_frameless": false,
+  "hud_always_on_top": true,
+  "hud_transparent": false,
+  "hud_click_through": false,
+  "hud_opacity": 0.85,
   "vector_blending": true,
   "performance_mode": false,
-  "hud_opacity": 0.85,
   "sensitivity": 1.0,
   "blip_fade_time": 2.0,
   "color_scheme": "default",
@@ -98,6 +108,13 @@ python audio_radar_system.py --device 38 --fps 120
   }
 }
 ```
+
+**Key Configuration Options:**
+- `hud_always_on_top`: Keep HUD above all windows
+- `hud_fps`: Target rendering framerate (60-240)
+- `vector_blending`: Advanced directional audio calculation
+- `audio_device`: Audio device ID (null = auto-detect)
+- `hud_opacity`: Window transparency (0.0-1.0)
 
 ### CLI Arguments
 ```bash

@@ -9,6 +9,7 @@ import os
 import argparse
 import threading
 import time
+import json
 from typing import Optional
 
 # Add current directory to path
@@ -24,20 +25,40 @@ class HUDLauncher:
         self.audio_radar = None
         self.radar_gui = None
         self.running = False
+        self.config_path = "config.json"
+        self.config = {}
+        
+    def load_config(self):
+        """Load configuration from config.json"""
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r') as f:
+                    self.config = json.load(f)
+                print("✅ Config loaded from config.json")
+                return True
+            else:
+                print("⚠️ No config.json found, using defaults")
+                return False
+        except Exception as e:
+            print(f"❌ Error loading config: {e}")
+            return False
         
     def parse_arguments(self):
-        """Parse command line arguments"""
+        """Parse command line arguments with config.json defaults"""
+        # Load config first
+        self.load_config()
+        
         parser = argparse.ArgumentParser(
             description='AudioRadar-HUD - Tactical Audio Visualization',
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  python hud_launcher.py                    # Launch with defaults
-  python hud_launcher.py --device 38        # Use specific audio device
-  python hud_launcher.py --fps 144          # Set custom FPS
-  python hud_launcher.py --frameless        # Remove window frame
-  python hud_launcher.py --always-on-top    # Force always on top
-  python hud_launcher.py --transparent      # Enable transparency
+  python hud_launcher.py                    # Launch with config.json settings
+  python hud_launcher.py --device 38        # Override audio device
+  python hud_launcher.py --fps 144          # Override FPS
+  python hud_launcher.py --frameless        # Override window style
+  python hud_launcher.py --always-on-top    # Override always on top
+  python hud_launcher.py --transparent      # Override transparency
   python hud_launcher.py --debug            # Enable debug output
   
 🎯 Sonar Instructions Compliance:
@@ -52,42 +73,57 @@ Examples:
         
         # Audio settings
         parser.add_argument('--device', type=int, 
+                          default=self.config.get('audio_device'),
                           help='Audio device ID to use (use debug_audio.py to list)')
-        parser.add_argument('--sample-rate', type=int, default=44100,
-                          help='Audio sample rate (default: 44100)')
-        parser.add_argument('--block-size', type=int, default=1024,
-                          help='Audio block size (default: 1024)')
+        parser.add_argument('--sample-rate', type=int, 
+                          default=self.config.get('audio_sample_rate', 44100),
+                          help='Audio sample rate (default from config)')
+        parser.add_argument('--block-size', type=int, 
+                          default=self.config.get('audio_block_size', 1024),
+                          help='Audio block size (default from config)')
         
         # Display settings
-        parser.add_argument('--fps', type=int, default=120,
-                          help='Target FPS (default: 120, min: 60, max: 240)')
-        parser.add_argument('--width', type=int, default=450,
-                          help='Window width (default: 450)')
-        parser.add_argument('--height', type=int, default=450,
-                          help='Window height (default: 450)')
-        parser.add_argument('--scale', type=float, default=1.0,
-                          help='Radar scale factor (default: 1.0)')
+        parser.add_argument('--fps', type=int, 
+                          default=self.config.get('hud_fps', 120),
+                          help='Target FPS (default from config)')
+        parser.add_argument('--width', type=int, 
+                          default=self.config.get('hud_width', 450),
+                          help='Window width (default from config)')
+        parser.add_argument('--height', type=int, 
+                          default=self.config.get('hud_height', 450),
+                          help='Window height (default from config)')
+        parser.add_argument('--scale', type=float, 
+                          default=self.config.get('hud_scale', 1.0),
+                          help='Radar scale factor (default from config)')
         
         # Window options
         parser.add_argument('--frameless', action='store_true',
+                          default=self.config.get('hud_frameless', False),
                           help='Remove window frame and title bar')
         parser.add_argument('--always-on-top', action='store_true',
+                          default=self.config.get('hud_always_on_top', True),
                           help='Keep window above all others')
         parser.add_argument('--transparent', action='store_true',
+                          default=self.config.get('hud_transparent', False),
                           help='Enable transparent background')
         parser.add_argument('--click-through', action='store_true',
+                          default=self.config.get('hud_click_through', False),
                           help='Allow clicks to pass through window')
-        parser.add_argument('--opacity', type=float, default=0.85,
-                          help='Window opacity (0.0-1.0, default: 0.85)')
+        parser.add_argument('--opacity', type=float, 
+                          default=self.config.get('hud_opacity', 0.85),
+                          help='Window opacity (0.0-1.0, default from config)')
         
         # Performance options
         parser.add_argument('--performance', action='store_true',
+                          default=self.config.get('performance_mode', False),
                           help='Enable performance optimizations')
         parser.add_argument('--no-vector-blending', action='store_true',
+                          default=not self.config.get('vector_blending', True),
                           help='Disable vector blending (use individual channel blips)')
         
         # Debug options
         parser.add_argument('--debug', action='store_true',
+                          default=self.config.get('enable_logging', False),
                           help='Enable debug output')
         parser.add_argument('--list-devices', action='store_true',
                           help='List available audio devices and exit')

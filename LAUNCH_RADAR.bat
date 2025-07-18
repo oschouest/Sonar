@@ -3,42 +3,32 @@
 echo 🎯 AUDIORADAR-HUD - Production Edition 🎯
 echo =========================================
 echo.
-echo [1] Launch AudioRadar (Auto-detect) - RECOMMENDED
-echo [2] Launch with Device 38 (VoiceMeeter)
-echo [3] Setup Guide (First Time)
-echo [4] Show Available Audio Devices  
-echo [5] Exit
+echo [1] Launch AudioRadar (config.json settings) - RECOMMENDED
+echo [2] Setup Guide (First Time)
+echo [3] Show Available Audio Devices  
+echo [4] Exit
 echo.
-set /p choice="Choose option (1-5): "
+set /p choice="Choose option (1-4): "
 
 if "%choice%"=="1" goto option1
 if "%choice%"=="2" goto option2
 if "%choice%"=="3" goto option3
-if "%choice%"=="4" goto option4
-if "%choice%"=="5" goto exit
+if "%choice%"=="4" goto exit
 echo Invalid choice. Please try again.
 goto start
 
 :option1
 echo.
-echo 🚀 Launching AudioRadar-HUD (Auto-detect)...
-echo ✨ Features: 120 FPS, Vector blending, Config menu
+echo 🚀 Launching AudioRadar-HUD...
+echo ✨ Loading settings from config.json
 echo 🎨 Anti-cheat safe, Always-on-top HUD
 echo 📡 Production-ready 7.1 audio radar
+echo 🎯 Press F1 or M in-game to open menu
 echo.
-python hud_launcher.py --fps 120 --always-on-top
+python hud_launcher.py
 goto end
 
 :option2
-echo.
-echo � Launching AudioRadar-HUD (Device 38)...
-echo ✨ Using VoiceMeeter Out B1 Alt device
-echo 📡 Optimized for VoiceMeeter Potato
-echo.
-python hud_launcher.py --device 38 --fps 120 --always-on-top
-goto end
-
-:option3
 echo.
 echo 🔧 Running Setup Guide...
 echo This will help you configure audio routing
@@ -49,10 +39,11 @@ pause
 cls
 goto start
 
-:option4
+:option3
 echo.
-echo 📋 Available Audio Devices:
-python -c "import sounddevice as sd; print('\\n'.join([f'{i}: {dev[\"name\"]}' for i, dev in enumerate(sd.query_devices())]))"
+echo 🎵 Available Audio Devices:
+echo.
+python hud_launcher.py --list-devices
 echo.
 pause
 cls
@@ -60,10 +51,15 @@ goto start
 
 :exit
 echo.
-echo 👋 Goodbye!
-exit /b 0
+echo 👋 Thanks for using AudioRadar-HUD!
+echo.
+pause
+exit
 
 :end
 echo.
-echo AudioRadar-HUD closed.
+echo 📝 AudioRadar-HUD has closed.
+echo.
 pause
+cls
+goto start
