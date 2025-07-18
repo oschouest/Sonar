@@ -192,12 +192,40 @@ class AudioRadarHUD:
         self.dragging = False
         self.drag_offset = (0, 0)
         
+        # Start topmost thread if always-on-top is enabled
+        if self.always_on_top and hasattr(self, 'hwnd') and self.hwnd:
+            self._start_topmost_thread()
+        
+    def _start_topmost_thread(self):
+        """Start background thread to keep window on top"""
+        import threading
+        
+        def keep_topmost():
+            while self.running:
+                try:
+                    if self.hwnd and self.always_on_top:
+                        HWND_TOPMOST = -1
+                        SWP_NOMOVE = 0x0002
+                        SWP_NOSIZE = 0x0001
+                        SWP_NOACTIVATE = 0x0010
+                        
+                        ctypes.windll.user32.SetWindowPos(
+                            self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+                        )
+                    time.sleep(1.0)  # Check every second
+                except:
+                    break
+        
+        self.topmost_thread = threading.Thread(target=keep_topmost, daemon=True)
+        self.topmost_thread.start()
+        print("✅ Topmost thread started")
+        
     def _setup_windows_features(self):
         """Setup Windows-specific features - SIMPLE ALWAYS-ON-TOP."""
         try:
             # Give pygame time to create the window
             pygame.display.flip()
-            time.sleep(0.5)
             
             if self.always_on_top:
                 try:
@@ -219,22 +247,6 @@ class AudioRadarHUD:
                         
                         if result:
                             print("✅ Always-on-top: ENABLED")
-                            
-                            # Keep it on top with a simple thread
-                            import threading
-                            def keep_topmost():
-                                while self.running:
-                                    try:
-                                        ctypes.windll.user32.SetWindowPos(
-                                            self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                                            SWP_NOMOVE | SWP_NOSIZE | 0x0010
-                                        )
-                                        time.sleep(1.0)  # Check every second
-                                    except:
-                                        break
-                            
-                            self.topmost_thread = threading.Thread(target=keep_topmost, daemon=True)
-                            self.topmost_thread.start()
                         else:
                             print("❌ SetWindowPos failed")
                     else:
