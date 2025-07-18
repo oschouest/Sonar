@@ -194,17 +194,29 @@ class AudioRadarHUD:
         self.drag_offset = (0, 0)
         
     def _setup_windows_features(self):
-        """Setup Windows-specific features with aggressive always-on-top."""
+        """Setup Windows-specific features with robust always-on-top."""
         try:
-            # Give pygame time to create the window
+            # Give pygame time to create the window properly
             pygame.display.flip()
-            time.sleep(0.1)  # Brief delay to ensure window is created
+            pygame.event.pump()
+            time.sleep(0.3)  # Give more time for proper window creation
             
             # Get window handle using pygame
             wm_info = pygame.display.get_wm_info()
             if 'window' in wm_info:
                 self.hwnd = wm_info['window']
                 print(f"✅ Got window handle: {self.hwnd}")
+                
+                # Verify window is valid
+                IsWindow = ctypes.windll.user32.IsWindow
+                IsWindow.argtypes = [ctypes.wintypes.HWND]
+                IsWindow.restype = ctypes.wintypes.BOOL
+                
+                if IsWindow(self.hwnd):
+                    print("✅ Window handle is valid")
+                else:
+                    print("❌ Window handle is invalid")
+                    return
             else:
                 print("❌ No window handle in wm_info")
                 return
@@ -225,18 +237,19 @@ class AudioRadarHUD:
             print(f"❌ Windows features setup failed: {e}")
             
     def _setup_aggressive_topmost(self):
-        """Setup aggressive always-on-top with persistent thread."""
+        """Setup robust aggressive always-on-top with persistent thread."""
         try:
             # Windows API constants
             HWND_TOPMOST = -1
             SWP_NOMOVE = 0x0002
             SWP_NOSIZE = 0x0001
             SWP_NOACTIVATE = 0x0010
+            SWP_SHOWWINDOW = 0x0040
             
-            # Initial topmost call
+            # Initial topmost call with SHOWWINDOW flag
             result = ctypes.windll.user32.SetWindowPos(
                 self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
             )
             
             if result:
@@ -253,25 +266,45 @@ class AudioRadarHUD:
                 error_code = ctypes.windll.kernel32.GetLastError()
                 print(f"⚠️ SetForegroundWindow failed - Error: {error_code}")
             
-            # Start persistent topmost thread
+            # Start persistent robust topmost thread
             self.topmost_running = True
             self.topmost_thread = threading.Thread(target=self._aggressive_topmost_thread, daemon=True)
             self.topmost_thread.start()
-            print("✅ Aggressive topmost thread started")
+            print("✅ Robust aggressive topmost thread started")
             
         except Exception as e:
             print(f"❌ Aggressive topmost setup failed: {e}")
             
     def _aggressive_topmost_thread(self):
-        """Persistent thread that enforces always-on-top every 500ms."""
+        """Robust topmost thread that handles window handle issues properly."""
         HWND_TOPMOST = -1
         SWP_NOMOVE = 0x0002
         SWP_NOSIZE = 0x0001
         SWP_NOACTIVATE = 0x0010
+        SWP_SHOWWINDOW = 0x0040
+        
+        # Add IsWindow function for validation
+        IsWindow = ctypes.windll.user32.IsWindow
+        IsWindow.argtypes = [ctypes.wintypes.HWND]
+        IsWindow.restype = ctypes.wintypes.BOOL
         
         while self.topmost_running:
             try:
                 if self.hwnd:
+                    # Check if window handle is still valid
+                    if not IsWindow(self.hwnd):
+                        print("⚠️ Window handle invalid - refreshing...")
+                        # Try to get a new handle
+                        wm_info = pygame.display.get_wm_info()
+                        if 'window' in wm_info:
+                            self.hwnd = wm_info['window']
+                            print(f"✅ Refreshed window handle: {self.hwnd}")
+                        else:
+                            print("❌ Could not refresh window handle")
+                            time.sleep(1.0)
+                            continue
+                    
+                    # Apply topmost with robust error handling
                     result = ctypes.windll.user32.SetWindowPos(
                         self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
@@ -279,9 +312,10 @@ class AudioRadarHUD:
                     
                     if not result:
                         error_code = ctypes.windll.kernel32.GetLastError()
-                        print(f"⚠️ Topmost refresh failed - Error: {error_code}")
+                        if error_code != 0:  # Only log real errors
+                            print(f"⚠️ Topmost refresh failed - Error: {error_code}")
                         
-                time.sleep(0.5)  # Wait 500ms before next enforcement
+                time.sleep(0.5)  # Check every 500ms
                 
             except Exception as e:
                 print(f"❌ Topmost thread error: {e}")
