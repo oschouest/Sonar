@@ -1012,6 +1012,9 @@ class AudioRadarHUD:
             self._update_fps()
             self.clock.tick(self.fps_cap)
         
+        # Cleanup - stop topmost thread
+        self.topmost_running = False
+        
         pygame.quit()
         print("Audio Radar HUD closed.")
     
