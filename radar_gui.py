@@ -71,7 +71,7 @@ class AudioRadarHUD:
     
     def __init__(self, 
                  window_size: Tuple[int, int] = (400, 400),
-                 fps_cap: int = 100,
+                 fps_cap: int = 120,
                  fade_time: float = 2.0,
                  scale_factor: float = 1.0,
                  theme: str = "dark",
@@ -85,7 +85,7 @@ class AudioRadarHUD:
         
         Args:
             window_size: (width, height) of the window
-            fps_cap: Maximum FPS for the display (default 100)
+            fps_cap: Maximum FPS for the display (default 120 for Sonar compliance)
             fade_time: Time in seconds for blips to fade out
             scale_factor: Scale multiplier for the radar size
             theme: Color theme ("dark" or "light")
@@ -148,6 +148,26 @@ class AudioRadarHUD:
         
         # Colors with opacity support
         self.colors = self._get_colors_with_opacity()
+        
+        # Load configuration
+        self.config = self._load_config()
+        
+        # Menu system
+        self.menu_visible = False
+        self.menu_items = [
+            "Sensitivity",
+            "Fade Time", 
+            "Blip Size",
+            "FPS Limit",
+            "Vector Blending",
+            "Save Config",
+            "Exit"
+        ]
+        self.menu_selected = 0
+        
+        # Vector blending for directional audio
+        self.use_vector_blending = self.config.get('vector_blending', True)
+        self.composite_blip = {'angle': 0, 'intensity': 0, 'active': False}
         
         # Audio data management
         self.volume_queue = queue.Queue(maxsize=200)  # Larger queue for high FPS
@@ -257,6 +277,247 @@ class AudioRadarHUD:
             print(f"Warning: Could not setup Windows features: {e}")
             import traceback
             traceback.print_exc()
+    
+    def _load_config(self):
+        """Load configuration from config.json (Sonar compliance)"""
+        default_config = {
+            "sensitivity": 1.0,
+            "fade_time": 0.5,
+            "blip_size_multiplier": 1.0,
+            "fps_limit": 120,
+            "vector_blending": True,
+            "show_individual_channels": True,
+            "show_direction_line": True,
+            "auto_scale": True,
+            "theme": "dark"
+        }
+        
+        config_path = "config.json"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    # Merge with defaults
+                    for key, value in default_config.items():
+                        if key not in config:
+                            config[key] = value
+                    print("✅ Configuration loaded from config.json")
+                    return config
+            except Exception as e:
+                print(f"⚠️ Config load error: {e}")
+        else:
+            print("📄 Creating default config.json")
+            self._save_config(default_config)
+        
+        return default_config
+    
+    def _save_config(self, config=None):
+        """Save configuration to config.json (Sonar compliance)"""
+        if config is None:
+            config = self.config
+        
+        try:
+            with open("config.json", 'w') as f:
+                json.dump(config, f, indent=2)
+            print("✅ Configuration saved to config.json")
+        except Exception as e:
+            print(f"❌ Config save error: {e}")
+    
+    def _calculate_composite_direction(self):
+        """Calculate weighted composite direction from all channels (Vector Blending)"""
+        if not self.use_vector_blending:
+            return
+        
+        total_weight = 0
+        weighted_x = 0
+        weighted_y = 0
+        
+        sensitivity = self.config.get('sensitivity', 1.0)
+        
+        for channel, angle in self.CHANNEL_POSITIONS.items():
+            if channel == "LFE":  # Skip LFE for directional calculation
+                continue
+                
+            volume = self.current_volumes.get(channel, 0) * sensitivity
+            if volume > 0.01:  # Threshold for significant audio
+                angle_rad = math.radians(angle)
+                
+                # Weight by volume squared for better sensitivity
+                weight = volume * volume
+                
+                # Convert to unit vector and add to composite
+                weighted_x += math.cos(angle_rad) * weight
+                weighted_y += math.sin(angle_rad) * weight
+                total_weight += weight
+        
+        if total_weight > 0:
+            # Calculate final direction and intensity
+            final_angle = math.atan2(weighted_y, weighted_x)
+            final_intensity = min(math.sqrt(weighted_x**2 + weighted_y**2), 1.0)
+            
+            self.composite_blip = {
+                'angle': math.degrees(final_angle),
+                'intensity': final_intensity,
+                'active': True
+            }
+        else:
+            self.composite_blip['active'] = False
+    
+    def _handle_menu_navigation(self, key):
+        """Handle menu navigation keys (Sonar compliance)"""
+        if key == pygame.K_UP:
+            self.menu_selected = (self.menu_selected - 1) % len(self.menu_items)
+        elif key == pygame.K_DOWN:
+            self.menu_selected = (self.menu_selected + 1) % len(self.menu_items)
+        elif key == pygame.K_RETURN or key == pygame.K_SPACE:
+            self._handle_menu_selection()
+        elif key == pygame.K_LEFT:
+            self._adjust_menu_value(-1)
+        elif key == pygame.K_RIGHT:
+            self._adjust_menu_value(1)
+    
+    def _adjust_menu_value(self, direction):
+        """Adjust the value of the selected menu item"""
+        selected_item = self.menu_items[self.menu_selected]
+        
+        if selected_item == "Sensitivity":
+            current = self.config.get('sensitivity', 1.0)
+            self.config['sensitivity'] = max(0.1, min(5.0, current + direction * 0.1))
+        elif selected_item == "Fade Time":
+            current = self.config.get('fade_time', 0.5)
+            self.config['fade_time'] = max(0.1, min(2.0, current + direction * 0.1))
+        elif selected_item == "Blip Size":
+            current = self.config.get('blip_size_multiplier', 1.0)
+            self.config['blip_size_multiplier'] = max(0.5, min(3.0, current + direction * 0.1))
+        elif selected_item == "FPS Limit":
+            current = self.config.get('fps_limit', 120)
+            self.config['fps_limit'] = max(60, min(240, current + direction * 10))
+            self.fps_cap = self.config['fps_limit']
+        elif selected_item == "Vector Blending":
+            self.use_vector_blending = not self.use_vector_blending
+            self.config['vector_blending'] = self.use_vector_blending
+    
+    def _handle_menu_selection(self):
+        """Handle menu item selection"""
+        selected_item = self.menu_items[self.menu_selected]
+        
+        if selected_item == "Save Config":
+            self._save_config()
+        elif selected_item == "Exit":
+            self.running = False
+        elif selected_item == "Vector Blending":
+            self.use_vector_blending = not self.use_vector_blending
+            self.config['vector_blending'] = self.use_vector_blending
+    
+    def _draw_menu(self):
+        """Draw the configuration menu (Sonar compliance)"""
+        if not self.menu_visible:
+            return
+        
+        # Menu background
+        menu_width = 280
+        menu_height = len(self.menu_items) * 35 + 60
+        menu_x = (self.window_size[0] - menu_width) // 2
+        menu_y = (self.window_size[1] - menu_height) // 2
+        
+        # Semi-transparent background
+        menu_surface = pygame.Surface((menu_width, menu_height), pygame.SRCALPHA)
+        menu_surface.fill((0, 0, 0, 180))
+        self.screen.blit(menu_surface, (menu_x, menu_y))
+        
+        # Menu border
+        pygame.draw.rect(self.screen, (0, 255, 0), (menu_x, menu_y, menu_width, menu_height), 2)
+        
+        # Menu title
+        title_text = self.font.render("🎯 RADAR CONFIG", True, (0, 255, 255))
+        title_rect = title_text.get_rect(centerx=menu_x + menu_width//2, y=menu_y + 15)
+        self.screen.blit(title_text, title_rect)
+        
+        # Menu items
+        for i, item in enumerate(self.menu_items):
+            item_y = menu_y + 50 + i * 35
+            color = (255, 255, 0) if i == self.menu_selected else (255, 255, 255)
+            
+            # Get current value for some items
+            if item == "Sensitivity":
+                display_text = f"{item}: {self.config.get('sensitivity', 1.0):.1f}"
+            elif item == "Fade Time":
+                display_text = f"{item}: {self.config.get('fade_time', 0.5):.1f}s"
+            elif item == "Blip Size":
+                display_text = f"{item}: {self.config.get('blip_size_multiplier', 1.0):.1f}x"
+            elif item == "FPS Limit":
+                display_text = f"{item}: {self.config.get('fps_limit', 120)}"
+            elif item == "Vector Blending":
+                status = "ON" if self.config.get('vector_blending', True) else "OFF"
+                display_text = f"{item}: {status}"
+            else:
+                display_text = item
+            
+            item_text = self.small_font.render(display_text, True, color)
+            item_rect = item_text.get_rect(centerx=menu_x + menu_width//2, y=item_y)
+            self.screen.blit(item_text, item_rect)
+        
+        # Instructions
+        instructions = [
+            "↑↓ Navigate  ←→ Adjust  Enter/Space Select",
+            "F1/M Toggle Menu  R Hot-reload Config",
+            "ESC Close Menu"
+        ]
+        
+        for i, instruction in enumerate(instructions):
+            inst_text = self.small_font.render(instruction, True, (128, 128, 128))
+            inst_rect = inst_text.get_rect(centerx=menu_x + menu_width//2, 
+                                         y=menu_y + menu_height - 45 + i * 15)
+            self.screen.blit(inst_text, inst_rect)
+    
+    def _draw_composite_blip(self):
+        """Draw the composite directional blip (Vector Blending)"""
+        if not self.use_vector_blending or not self.composite_blip['active']:
+            return
+        
+        angle = self.composite_blip['angle']
+        intensity = self.composite_blip['intensity']
+        
+        # Convert angle to position
+        angle_rad = math.radians(angle)
+        distance = self.radar_radius * (0.4 + intensity * 0.4)  # 40% to 80% of radius
+        
+        x = self.center[0] + math.cos(angle_rad) * distance
+        y = self.center[1] + math.sin(angle_rad) * distance
+        
+        # Dynamic blip size with pulsing
+        current_time = time.time()
+        pulse = 1.0 + 0.3 * math.sin(current_time * 8 * intensity)
+        base_size = max(8, int(intensity * 80 * self.config.get('blip_size_multiplier', 1.0)))
+        blip_size = int(base_size * pulse)
+        
+        # Color based on intensity
+        if intensity > 0.6:
+            color = (255, 255, 255)  # White hot
+            glow_color = (255, 0, 0)  # Red glow
+        elif intensity > 0.4:
+            color = (255, 100, 0)  # Orange
+            glow_color = (255, 150, 0)  # Orange glow
+        elif intensity > 0.2:
+            color = (255, 255, 0)  # Yellow
+            glow_color = (255, 255, 100)  # Yellow glow
+        else:
+            color = (0, 255, 0)  # Green
+            glow_color = (100, 255, 100)  # Green glow
+        
+        # Draw glow effect
+        glow_size = blip_size + 12
+        pygame.draw.circle(self.screen, glow_color, (int(x), int(y)), glow_size)
+        
+        # Draw main blip
+        pygame.draw.circle(self.screen, color, (int(x), int(y)), blip_size)
+        pygame.draw.circle(self.screen, (255, 255, 255), (int(x), int(y)), blip_size, 2)
+        
+        # Draw direction line
+        if self.config.get('show_direction_line', True):
+            line_end_x = self.center[0] + math.cos(angle_rad) * self.radar_radius * 0.9
+            line_end_y = self.center[1] + math.sin(angle_rad) * self.radar_radius * 0.9
+            pygame.draw.line(self.screen, color, self.center, (int(line_end_x), int(line_end_y)), 2)
             
     def _get_colors_with_opacity(self):
         """Get color scheme with opacity adjustments for HUD mode - IMPROVED TRANSPARENCY."""
@@ -534,32 +795,51 @@ class AudioRadarHUD:
                 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.running = False
-                elif event.key == pygame.K_d:
-                    self.show_debug = not self.show_debug
-                elif event.key == pygame.K_t:
-                    self.theme = "light" if self.theme == "dark" else "dark"
-                    self.colors = self._get_colors_with_opacity()
-                elif event.key == pygame.K_a:
-                    self.auto_scale = not self.auto_scale
-                elif event.key == pygame.K_r:
-                    self.max_volume_seen = 0.1
-                elif event.key == pygame.K_p:
-                    self.performance_mode = not self.performance_mode
-                    print(f"Performance mode: {self.performance_mode}")
-                elif event.key == pygame.K_h:
-                    self.show_help = not self.show_help
-                elif event.key == pygame.K_f:
-                    # Toggle frameless mode
-                    self._toggle_frameless()
-                elif event.key == pygame.K_PLUS or event.key == pygame.K_EQUALS:
-                    # Increase FPS cap
-                    self.fps_cap = min(200, self.fps_cap + 10)
-                    print(f"FPS cap: {self.fps_cap}")
-                elif event.key == pygame.K_MINUS:
-                    # Decrease FPS cap
-                    self.fps_cap = max(30, self.fps_cap - 10)
-                    print(f"FPS cap: {self.fps_cap}")
+                    if self.menu_visible:
+                        self.menu_visible = False
+                    else:
+                        self.running = False
+                elif event.key == pygame.K_F1 or event.key == pygame.K_m:
+                    # Menu hotkey (Sonar compliance)
+                    self.menu_visible = not self.menu_visible
+                elif self.menu_visible:
+                    self._handle_menu_navigation(event.key)
+                else:
+                    # Regular hotkeys when menu is not visible
+                    if event.key == pygame.K_d:
+                        self.show_debug = not self.show_debug
+                    elif event.key == pygame.K_t:
+                        self.theme = "light" if self.theme == "dark" else "dark"
+                        self.colors = self._get_colors_with_opacity()
+                    elif event.key == pygame.K_a:
+                        self.auto_scale = not self.auto_scale
+                    elif event.key == pygame.K_r:
+                        self.max_volume_seen = 0.1
+                        self.config = self._load_config()  # Hot reload config
+                        print("🔄 Configuration reloaded")
+                    elif event.key == pygame.K_p:
+                        self.performance_mode = not self.performance_mode
+                        print(f"Performance mode: {self.performance_mode}")
+                    elif event.key == pygame.K_h:
+                        self.show_help = not self.show_help
+                    elif event.key == pygame.K_f:
+                        # Toggle frameless mode
+                        self._toggle_frameless()
+                    elif event.key == pygame.K_v:
+                        # Toggle vector blending
+                        self.use_vector_blending = not self.use_vector_blending
+                        self.config['vector_blending'] = self.use_vector_blending
+                        print(f"Vector blending: {self.use_vector_blending}")
+                    elif event.key == pygame.K_PLUS or event.key == pygame.K_EQUALS:
+                        # Increase FPS cap
+                        self.fps_cap = min(200, self.fps_cap + 10)
+                        self.config['fps_limit'] = self.fps_cap
+                        print(f"FPS cap: {self.fps_cap}")
+                    elif event.key == pygame.K_MINUS:
+                        # Decrease FPS cap
+                        self.fps_cap = max(30, self.fps_cap - 10)
+                        self.config['fps_limit'] = self.fps_cap
+                        print(f"FPS cap: {self.fps_cap}")
                     
             elif event.type == pygame.MOUSEBUTTONDOWN and not self.click_through:
                 if event.button == 1:  # Left click
@@ -623,6 +903,9 @@ class AudioRadarHUD:
             # Process volume updates (with limit for performance)
             self._process_volume_updates()
             
+            # Calculate composite direction (Vector Blending - Sonar compliance)
+            self._calculate_composite_direction()
+            
             # Clear screen
             if self.transparent_bg:
                 self.screen.fill((0, 0, 0, 0))  # Transparent
@@ -649,10 +932,16 @@ class AudioRadarHUD:
             for channel, volume in self.current_volumes.items():
                 self._draw_channel_blip(channel, volume)
             
+            # Draw composite directional blip (Vector Blending - Sonar compliance)
+            self._draw_composite_blip()
+            
             # Draw UI elements
             self._draw_debug_info()
             if self.show_help:
                 self._draw_controls_help()
+            
+            # Draw menu (Sonar compliance)
+            self._draw_menu()
             
             # Update display
             pygame.display.flip()

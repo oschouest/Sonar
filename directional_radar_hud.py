@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-TKINTER REAL AUDIO HUD - Working version with actual 7.1 audio
+Advanced 7.1 Audio Radar HUD - Real Audio Only
+DIRECTIONAL BLENDING RADAR - Shows estimated sound direction
 """
 
 import tkinter as tk
-from tkinter import ttk
-import threading
 import time
+import threading
 import math
+import numpy as np
 from audio_radar import AudioRadar
 
 class RealAudioTkinterHUD:
@@ -65,7 +66,7 @@ class RealAudioTkinterHUD:
         # Instructions
         self.inst_label = tk.Label(
             self.root,
-            text="🖱️ Right-click: Close | ⌨️ ESC: Quit | 🎮 ALWAYS ON TOP",
+            text="🖱️ Right-click: Close | ⌨️ ESC: Quit | 🎮 DIRECTIONAL RADAR",
             fg='#00ffff',
             bg='#001100',
             font=('Arial', 9)
@@ -84,16 +85,17 @@ class RealAudioTkinterHUD:
         # Start audio capture
         self.start_audio_capture()
         
-        print("🎯 REAL AUDIO TKINTER HUD READY!")
+        print("🎯 DIRECTIONAL AUDIO RADAR READY!")
         print("🎵 Features:")
         print("   ✅ Real 7.1 surround sound capture")
-        print("   ✅ Always on top (working!)")
+        print("   ✅ Directional blending radar")
+        print("   ✅ Always on top")
         print("   ✅ Semi-transparent")
         print("   ✅ Frameless design")
         print("📋 Controls:")
         print("   🖱️ Right-click to close")
         print("   ⌨️ ESC to quit")
-        print("   🎮 Ready for gaming!")
+        print("   🎮 Ready for tactical gaming!")
     
     def enforce_topmost(self):
         """Continuously enforce topmost status"""
@@ -170,7 +172,7 @@ class RealAudioTkinterHUD:
             pass
     
     def update_display(self):
-        """Update the radar display"""
+        """Update the radar display with DIRECTIONAL BLENDING"""
         if not self.running:
             return
             
@@ -190,7 +192,7 @@ class RealAudioTkinterHUD:
                     outline=colors[i], width=2
                 )
             
-            # Draw center dot (larger)
+            # Draw center dot
             self.canvas.create_oval(
                 center_x - 4, center_y - 4,
                 center_x + 4, center_y + 4,
@@ -210,23 +212,22 @@ class RealAudioTkinterHUD:
             )
             
             # PROPER 7.1 CHANNEL DIRECTIONAL MAPPING
-            # Using angles in degrees (0 = front, clockwise)
             CHANNEL_ANGLES = {
-                "C": 0,       # Front center (top of screen)
+                "C": 0,       # Front center (top)
                 "FR": 45,     # Front right 
                 "SR": 90,     # Side right
                 "RR": 135,    # Rear right
                 "RL": 225,    # Rear left  
                 "SL": 270,    # Side left
                 "FL": 315,    # Front left
-                "LFE": None   # Center (special handling)
+                "LFE": None   # Center (special)
             }
             
-            # Convert angles to (x, y) positions
+            # Convert angles to (x, y) positions for labels
             positions = {}
             for channel, angle in CHANNEL_ANGLES.items():
                 if angle is not None:
-                    angle_rad = math.radians(angle - 90)  # Convert to standard math coords
+                    angle_rad = math.radians(angle - 90)  # Convert to math coords
                     dx = math.cos(angle_rad)
                     dy = math.sin(angle_rad)
                     positions[channel] = (dx, dy)
@@ -235,7 +236,7 @@ class RealAudioTkinterHUD:
             
             # Draw channel labels
             for channel, (dx, dy) in positions.items():
-                if channel != "LFE":  # Skip LFE label (center)
+                if channel != "LFE":
                     label_x = center_x + dx * (radius + 25)
                     label_y = center_y + dy * (radius + 25)
                     
@@ -255,11 +256,8 @@ class RealAudioTkinterHUD:
                         font=('Arial', 12, 'bold')
                     )
             
-            # Draw volume blips with DYNAMIC DIRECTIONAL BLENDING
-            max_volume = max(self.volumes.values()) if self.volumes.values() else 0
+            # ADVANCED DIRECTIONAL BLENDING - Calculate composite direction
             current_time = time.time()
-            
-            # ADVANCED DIRECTIONAL BLENDING - Calculate weighted direction
             total_weight = 0
             weighted_x = 0
             weighted_y = 0
@@ -295,36 +293,25 @@ class RealAudioTkinterHUD:
                 base_size = max(8, int(final_intensity * 120))
                 blip_size = int(base_size * pulse)
                 
-                # ADVANCED COLOR MAPPING based on intensity
+                # Color mapping based on intensity
                 if final_intensity > 0.6:
-                    # CRITICAL/LOUD - Bright red with white core
-                    color = '#ffffff'  # White hot center
+                    color = '#ffffff'  # White hot
                     glow_color = '#ff0000'  # Red glow
-                    ring_color = '#ff4444'  # Red ring
                 elif final_intensity > 0.4:
-                    # HIGH - Red to orange gradient
-                    color = '#ff2200'  # Bright red-orange
+                    color = '#ff2200'  # Red-orange
                     glow_color = '#ff6600'  # Orange glow
-                    ring_color = '#ff8844'  # Orange ring
                 elif final_intensity > 0.2:
-                    # MEDIUM - Orange to yellow
                     color = '#ff8800'  # Orange
-                    glow_color = '#ffaa00'  # Yellow-orange glow
-                    ring_color = '#ffcc44'  # Yellow ring
+                    glow_color = '#ffaa00'  # Yellow glow
                 elif final_intensity > 0.1:
-                    # MODERATE - Yellow to green
                     color = '#ffff00'  # Yellow
-                    glow_color = '#88ff00'  # Yellow-green glow
-                    ring_color = '#aaff44'  # Light green ring
+                    glow_color = '#88ff00'  # Green glow
                 else:
-                    # LOW - Green
                     color = '#00ff00'  # Green
                     glow_color = '#44ff44'  # Light green glow
-                    ring_color = '#66ff66'  # Green ring
                 
-                # MULTI-LAYER MAIN BLIP EFFECT
-                
-                # Outer glow (largest)
+                # Draw main directional blip
+                # Outer glow
                 glow_size = blip_size + 8
                 self.canvas.create_oval(
                     blip_x - glow_size, blip_y - glow_size,
@@ -332,15 +319,7 @@ class RealAudioTkinterHUD:
                     fill=glow_color, outline='', stipple='gray25'
                 )
                 
-                # Middle ring
-                ring_size = blip_size + 4
-                self.canvas.create_oval(
-                    blip_x - ring_size, blip_y - ring_size,
-                    blip_x + ring_size, blip_y + ring_size,
-                    fill=ring_color, outline=''
-                )
-                
-                # Inner core (brightest)
+                # Inner core
                 self.canvas.create_oval(
                     blip_x - blip_size, blip_y - blip_size,
                     blip_x + blip_size, blip_y + blip_size,
@@ -356,28 +335,24 @@ class RealAudioTkinterHUD:
                     fill=color, width=2, stipple='gray50'
                 )
             
-            # OPTIONAL: Draw dim individual channel indicators
+            # Draw dim individual channel indicators
             for channel, (dx, dy) in positions.items():
                 volume = self.volumes.get(channel, 0)
-                if volume > 0.02:  # Only show channels with decent volume
-                    
+                if volume > 0.02:
                     if channel == "LFE":
                         # LFE center pulse
-                        lfe_x = center_x
-                        lfe_y = center_y
                         lfe_size = max(3, int(volume * 40))
                         self.canvas.create_oval(
-                            lfe_x - lfe_size, lfe_y - lfe_size,
-                            lfe_x + lfe_size, lfe_y + lfe_size,
+                            center_x - lfe_size, center_y - lfe_size,
+                            center_x + lfe_size, center_y + lfe_size,
                             fill='#4444ff', outline='#6666ff', width=1
                         )
                     else:
-                        # Dim individual channel dots
+                        # Dim channel dots
                         dot_x = center_x + dx * radius * 0.85
                         dot_y = center_y + dy * radius * 0.85
                         dot_size = max(2, int(volume * 20))
                         
-                        # Dim color based on volume
                         if volume > 0.3:
                             dot_color = '#664444'  # Dim red
                         elif volume > 0.1:
@@ -401,139 +376,31 @@ class RealAudioTkinterHUD:
                     fill='#00ff00',
                     font=('Arial', 10, 'bold')
                 )
-                                blip_x + blip_size + 8, blip_y,
-                                blip_x + blip_size + 12, blip_y - 3,
-                                fill=color, width=2
-                            )
-                            self.canvas.create_line(
-                                blip_x + blip_size + 8, blip_y,
-                                blip_x + blip_size + 12, blip_y + 3,
-                                fill=color, width=2
-                            )
-                    
-                    elif channel in ['RL', 'RR']:  # Rear channels - add rear indicators
-                        self.canvas.create_rectangle(
-                            blip_x - 2, blip_y + blip_size + 4,
-                            blip_x + 2, blip_y + blip_size + 8,
-                            fill=color, outline=''
-                        )
-                    
-                    elif channel == 'C':  # Center - add center cross
-                        cross_size = 6
-                        self.canvas.create_line(
-                            blip_x - cross_size, blip_y,
-                            blip_x + cross_size, blip_y,
-                            fill='#ffffff', width=2
-                        )
-                        self.canvas.create_line(
-                            blip_x, blip_y - cross_size,
-                            blip_x, blip_y + cross_size,
-                            fill='#ffffff', width=2
-                        )
-                    
-                    elif channel == 'LFE':  # Bass - add bass wave effect
-                        wave_time = current_time * 5
-                        for i in range(3):
-                            wave_radius = blip_size + (i * 4) + int(3 * math.sin(wave_time + i))
-                            self.canvas.create_oval(
-                                blip_x - wave_radius, blip_y - wave_radius,
-                                blip_x + wave_radius, blip_y + wave_radius,
-                                outline=color, width=1, fill=''
-                            )
-            
-            # COMBAT-STYLE THREAT LEVEL INDICATOR
-            threat_level = max_volume * 5  # Scale up for better visibility
-            
-            # Threat meter background
-            meter_x = center_x - 150
-            meter_y = center_y + radius + 30
-            meter_width = 300
-            meter_height = 20
-            
-            self.canvas.create_rectangle(
-                meter_x, meter_y, meter_x + meter_width, meter_y + meter_height,
-                fill='#001100', outline='#00ff00', width=2
-            )
-            
-            # Threat level bar with dynamic colors
-            if threat_level > 0.01:
-                bar_width = min(meter_width, int(threat_level * meter_width))
-                
-                if threat_level > 0.8:
-                    bar_color = '#ff0000'  # RED ALERT
-                    threat_text = "🚨 THREAT: CRITICAL 🚨"
-                elif threat_level > 0.5:
-                    bar_color = '#ff8800'  # ORANGE ALERT
-                    threat_text = "⚠️ THREAT: HIGH ⚠️"
-                elif threat_level > 0.3:
-                    bar_color = '#ffff00'  # YELLOW ALERT
-                    threat_text = "⚡ THREAT: MEDIUM ⚡"
-                elif threat_level > 0.1:
-                    bar_color = '#00ff00'  # GREEN ALERT
-                    threat_text = "👁️ THREAT: LOW 👁️"
-                else:
-                    bar_color = '#00aaff'  # BLUE - QUIET
-                    threat_text = "🔍 SCANNING..."
-                
-                # Animated threat bar
-                pulse_intensity = 1.0 + 0.2 * math.sin(current_time * 8)
-                self.canvas.create_rectangle(
-                    meter_x, meter_y, meter_x + bar_width, meter_y + meter_height,
-                    fill=bar_color, outline='', stipple='gray75'
-                )
-                
-                # Threat level text
-                self.canvas.create_text(
-                    center_x, meter_y - 15,
-                    text=threat_text,
-                    fill=bar_color,
-                    font=('Arial', 12, 'bold')
-                )
-            
-            # AUDIO ACTIVITY COUNTER
-            active_channels = sum(1 for v in self.volumes.values() if v > 0.01)
-            activity_text = f"📡 ACTIVE CHANNELS: {active_channels}/8"
-            self.canvas.create_text(
-                center_x, meter_y + meter_height + 20,
-                text=activity_text,
-                fill='#00ff00',
-                font=('Arial', 10, 'bold')
-            )
-            
-            # Draw max volume indicator with pulse effect
-            if max_volume > 0:
-                pulse = 1.0 + 0.4 * math.sin(current_time * 12)
-                max_color = '#ffffff' if max_volume > 0.3 else '#00ff00'
-                max_text = f"PEAK: {max_volume:.3f}"
-                self.canvas.create_text(
-                    center_x, center_y + radius + 80,
-                    text=max_text,
-                    fill=max_color,
-                    font=('Arial', int(10 * pulse), 'bold')
-                )
-            
-            # Schedule next update
-            if self.running:
-                self.root.after(50, self.update_display)  # 20 FPS
-                
+        
         except Exception as e:
-            print(f"Display error: {e}")
+            print(f"❌ Display error: {e}")
+        
+        # Schedule next update
+        if self.running:
+            try:
+                self.root.after(50, self.update_display)  # 20 FPS
+            except:
+                pass
     
     def handle_keypress(self, event):
-        """Handle keyboard events"""
+        """Handle key press events"""
         if event.keysym == 'Escape':
             self.close_window()
     
     def close_window(self, event=None):
-        """Close the HUD"""
-        print("👋 Closing HUD...")
+        """Close the window and stop audio"""
+        print("🛑 Closing radar HUD...")
         self.running = False
         
         # Stop audio capture
         if self.audio_radar:
             try:
                 self.audio_radar.stop()
-                print("✅ Audio capture stopped")
             except:
                 pass
         
@@ -544,20 +411,14 @@ class RealAudioTkinterHUD:
             pass
     
     def run(self):
-        """Run the HUD"""
+        """Start the main loop"""
         try:
             self.root.mainloop()
         except Exception as e:
-            print(f"HUD error: {e}")
-        finally:
-            self.running = False
-            if self.audio_radar:
-                try:
-                    self.audio_radar.stop()
-                except:
-                    pass
+            print(f"❌ Error: {e}")
 
-def main():
+
+if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='7.1 Audio Radar HUD')
@@ -571,35 +432,20 @@ def main():
     
     args = parser.parse_args()
     
-    print("🚀 LAUNCHING REAL AUDIO TKINTER HUD")
-    print("=" * 50)
-    print("🎯 Features:")
-    print("   🎵 Real 7.1 surround sound capture")
-    print("   🖼️ Always-on-top window (WORKING!)")
-    print("   👻 Semi-transparent overlay")
-    print("   🎮 Gaming-ready HUD")
-    print("=" * 50)
+    print("🎯 STARTING DIRECTIONAL AUDIO RADAR HUD")
+    print("======================================")
+    if args.device:
+        print(f"🎵 Using device: {args.device}")
+    if args.debug:
+        print("🔍 Debug mode enabled")
+    print("🎮 REAL AUDIO ONLY - NO SIMULATION")
+    print()
     
+    # Create and run HUD
     hud = RealAudioTkinterHUD()
     
-    # Apply command line options
-    if args.frameless:
-        hud.root.overrideredirect(True)
-    if args.always_on_top:
-        hud.root.attributes('-topmost', True)
-    if args.transparent:
-        hud.root.attributes('-alpha', args.opacity)
-    
-    # Start with specified device
+    # Override device if specified
     if args.device:
-        print(f"🎯 Using specified device: {args.device}")
-        hud.start_audio_capture(preferred_device=args.device)
-    else:
-        hud.start_audio_capture()
+        hud.start_audio_capture(args.device)
     
     hud.run()
-    
-    print("🎯 Audio Radar HUD closed")
-
-if __name__ == "__main__":
-    main()

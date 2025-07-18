@@ -81,7 +81,7 @@ class AudioRadar:
             print(f"🎵 Raw audio detected: {raw_level:.4f} ({num_channels} channels)")
         
         if num_channels == 2:
-            # Enhanced stereo-to-surround mapping with dynamic positioning
+            # Stereo input - map intelligently to 7.1 channels
             left_channel = indata[:, 0]
             right_channel = indata[:, 1]
             
@@ -168,14 +168,36 @@ class AudioRadar:
                         volumes[channel] *= 1.8  # Significantly boost quiet sounds
                     elif volumes[channel] < min_threshold * 6:
                         volumes[channel] *= 1.4  # Moderately boost medium sounds
+                        
+        elif num_channels >= 6:
+            # TRUE 7.1 SURROUND - Use actual channels!
+            print(f"🔥 DETECTING TRUE {num_channels} CHANNEL AUDIO!")
             
-        elif num_channels >= 8:
-            # True 7.1 or higher - use actual channels
-            for i, channel_name in enumerate(self.CHANNEL_NAMES):
-                if i < num_channels:
+            # Map actual channels to our format
+            channel_map = {
+                0: "FL",   # Front Left
+                1: "FR",   # Front Right  
+                2: "C",    # Center
+                3: "LFE",  # Low Frequency Effects
+                4: "RL",   # Rear Left
+                5: "RR",   # Rear Right
+                6: "SL",   # Side Left
+                7: "SR"    # Side Right
+            }
+            
+            for i in range(min(num_channels, 8)):
+                if i in channel_map:
+                    channel_name = channel_map[i]
                     rms = np.sqrt(np.mean(indata[:, i] ** 2))
                     volumes[channel_name] = rms
-                else:
+                    
+                    # Debug: Show which channels are active
+                    if rms > 0.01:
+                        print(f"🎯 Channel {i} ({channel_name}): {rms:.3f}")
+            
+            # Fill any missing channels with zero
+            for channel_name in self.CHANNEL_NAMES:
+                if channel_name not in volumes:
                     volumes[channel_name] = 0.0
                     
         else:

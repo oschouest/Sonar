@@ -18,6 +18,23 @@ var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
+
+# Workspace hygiene - temp files
+*.pyc
+*.log
+*.bak
+*~
+*.tmp
+*.temp
+
+# Development sandbox - excluded from production
+dev_sandbox/temp/
+dev_sandbox/scratch/
+dev_sandbox/*.tmp
+
+# Local config overrides
+config_local.json
+config_backup.json
 *.egg-info/
 .installed.cfg
 *.egg
