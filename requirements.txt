@@ -1,0 +1,17 @@
+# AudioRadar-HUD Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core audio processing
+sounddevice>=0.4.6
+numpy>=1.21.0
+
+# GUI frameworks  
+pygame>=2.1.0
+# tkinter - Usually included with Python
+
+# Optional: Advanced audio features
+matplotlib>=3.5.0
+
+# Development dependencies (optional)
+# pytest>=7.0.0    # For running tests
+# black>=22.0.0    # Code formatting
