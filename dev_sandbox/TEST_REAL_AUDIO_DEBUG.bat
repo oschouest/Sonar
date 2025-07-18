@@ -1,4 +1,7 @@
 @echo off
+REM DEV_SANDBOX: This is a development debug batch file for real audio testing
+REM Purpose: Test real audio capture with debug output enabled
+REM Status: Development tool - used for audio debugging and validation
 echo 🎯 LAUNCHING REAL AUDIO RADAR HUD (DEBUG)
 echo =======================================
 echo Device: 38 (VoiceMeeter Out B1 Alt)

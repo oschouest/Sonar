@@ -2,6 +2,10 @@
 """
 Advanced 7.1 Audio Radar HUD - Real Audio Only
 DIRECTIONAL BLENDING RADAR - Shows estimated sound direction
+
+DEV_SANDBOX: This is a development test tool for directional audio blending.
+Purpose: Experimental directional radar with advanced blending algorithms.
+Status: Development tool - used for testing directional audio algorithms.
 """
 
 import tkinter as tk

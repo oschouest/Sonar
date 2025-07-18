@@ -29,14 +29,16 @@ AudioRadar-HUD is now a **production-ready**, **anti-cheat-safe** tactical audio
 - **`passthrough_setup_helper.py`** - User-friendly setup guide
 
 #### Legacy Support
-- **`real_audio_tkinter_hud.py`** - Tkinter HUD (deprecated but functional)
-- **`simple_radar.py`** - Basic test radar
-- **`debug_audio.py`** - Audio device debugging
+- **`real_audio_tkinter_hud.py`** - Legacy Tkinter HUD (deprecated but functional)
 
-#### Helper Scripts
+#### Development Tools (dev_sandbox/)
 - **`test_system.py`** - Comprehensive system test suite
-- **`LAUNCH_RADAR.bat`** - Windows batch launcher with menu
-- **`TEST_REAL_AUDIO.bat`** - Audio device test script
+- **`debug_audio.py`** - Audio device debugging
+- **`simple_radar.py`** - Basic radar testing
+- **`directional_radar_hud.py`** - Experimental directional radar
+- **`test_channel_mapping.py`** - Channel mapping validation
+- **`TEST_REAL_AUDIO.bat`** - Real audio test script
+- **`TEST_REAL_AUDIO_DEBUG.bat`** - Debug audio test script
 
 ## 🎮 Launch Options
 
@@ -177,19 +179,26 @@ python passthrough_setup_helper.py
 
 ```
 siege_audio_radar/
-├── hud_launcher.py              # 🚀 Production launcher
+├── audio_radar.py               # 🎵 7.1 audio capture + analysis
 ├── audio_radar_system.py        # 🎯 System coordinator
-├── radar_gui.py                 # 🎮 High-performance HUD
-├── audio_radar.py               # 🎵 Audio capture/analysis
 ├── config.json                  # ⚙️ Configuration
+├── hud_launcher.py              # 🚀 Production launcher
+├── LAUNCH_RADAR.bat             # 🪟 Windows batch launcher
 ├── passthrough_setup_helper.py  # 🔧 Setup guide
-├── test_system.py               # 🧪 Test suite
-├── LAUNCH_RADAR.bat             # 🪟 Windows launcher
+├── radar_gui.py                 # 🎮 High-performance HUD
 ├── real_audio_tkinter_hud.py    # 📺 Legacy Tkinter HUD
-├── simple_radar.py              # 🎯 Basic test radar
-├── debug_audio.py               # 🔍 Audio debugging
-├── TEST_REAL_AUDIO.bat          # 🎵 Audio test script
-└── requirements.txt             # 📋 Dependencies
+├── requirements.txt             # 📋 Dependencies
+├── dev_sandbox/                 # 🧪 Development & testing
+│   ├── test_system.py           # System validation tests
+│   ├── debug_audio.py           # Audio debugging tools
+│   ├── simple_radar.py          # Basic radar testing
+│   ├── directional_radar_hud.py # Experimental directional radar
+│   ├── test_channel_mapping.py  # Channel mapping validation
+│   ├── TEST_REAL_AUDIO.bat      # Real audio test script
+│   └── TEST_REAL_AUDIO_DEBUG.bat # Debug audio test script
+└── examples/                    # � Documentation & examples
+    ├── PRODUCTION_SUMMARY.md    # Complete feature summary
+    └── SONAR_COMPLIANCE_SUMMARY.md # Compliance documentation
 ```
 
 ## 🎉 Success Metrics
