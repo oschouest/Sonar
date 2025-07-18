@@ -193,120 +193,84 @@ class AudioRadarHUD:
         self.drag_offset = (0, 0)
         
     def _setup_windows_features(self):
-        """Setup Windows-specific features - ULTRA AGGRESSIVE ALWAYS-ON-TOP."""
+        """Setup Windows-specific features - SIMPLE ALWAYS-ON-TOP."""
         try:
-            # Get window handle - improved method
-            pygame.display.flip()  # Ensure window is created
-            time.sleep(0.2)  # Give more time for window creation
+            # Give pygame time to create the window
+            pygame.display.flip()
+            time.sleep(0.5)
             
-            try:
-                wm_info = pygame.display.get_wm_info()
-                self.hwnd = wm_info.get("window")
-                if not self.hwnd:
-                    print("⚠️ Could not get window handle, trying alternative method...")
-                    # Alternative: Find window by title
-                    import ctypes
-                    from ctypes import wintypes
-                    
-                    def enum_windows_callback(hwnd, windows):
-                        if ctypes.windll.user32.IsWindowVisible(hwnd):
-                            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
-                            buff = ctypes.create_unicode_buffer(length + 1)
-                            ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
-                            if "AudioRadar" in buff.value or "pygame" in buff.value:
-                                windows.append(hwnd)
-                        return True
-                    
-                    windows = []
-                    EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-                    ctypes.windll.user32.EnumWindows(EnumWindowsProc(enum_windows_callback), id(windows))
-                    
-                    if windows:
-                        self.hwnd = windows[0]
-                        print(f"✅ Found window handle via enumeration: {self.hwnd}")
-                    else:
-                        print("❌ Could not find window handle")
-                        return
+            if self.always_on_top:
+                try:
+                    # Get window handle
+                    wm_info = pygame.display.get_wm_info()
+                    if 'window' in wm_info:
+                        self.hwnd = wm_info['window']
+                        print(f"✅ Got window handle: {self.hwnd}")
                         
-            except Exception as e:
-                print(f"❌ Error getting window handle: {e}")
-                return
+                        # Simple always-on-top
+                        HWND_TOPMOST = -1
+                        SWP_NOMOVE = 0x0002
+                        SWP_NOSIZE = 0x0001
+                        
+                        result = ctypes.windll.user32.SetWindowPos(
+                            self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                            SWP_NOMOVE | SWP_NOSIZE
+                        )
+                        
+                        if result:
+                            print("✅ Always-on-top: ENABLED")
+                            
+                            # Keep it on top with a simple thread
+                            import threading
+                            def keep_topmost():
+                                while self.running:
+                                    try:
+                                        ctypes.windll.user32.SetWindowPos(
+                                            self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                                            SWP_NOMOVE | SWP_NOSIZE | 0x0010
+                                        )
+                                        time.sleep(1.0)  # Check every second
+                                    except:
+                                        break
+                            
+                            self.topmost_thread = threading.Thread(target=keep_topmost, daemon=True)
+                            self.topmost_thread.start()
+                        else:
+                            print("❌ SetWindowPos failed")
+                    else:
+                        print("❌ No window handle in wm_info")
+                        
+                except Exception as e:
+                    print(f"❌ Always-on-top setup failed: {e}")
             
-            if self.always_on_top and self.hwnd:
-                # ULTRA AGGRESSIVE: Multiple topmost methods
-                HWND_TOPMOST = -1
-                SWP_NOMOVE = 0x0002
-                SWP_NOSIZE = 0x0001
-                SWP_SHOWWINDOW = 0x0040
-                SWP_NOACTIVATE = 0x0010
-                
-                # Method 1: SetWindowPos
-                result = ctypes.windll.user32.SetWindowPos(
-                    self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
-                )
-                print(f"SetWindowPos result: {result}")
-                
-                # Method 2: Extended window style
-                GWL_EXSTYLE = -20
-                WS_EX_TOPMOST = 0x8
-                current_style = ctypes.windll.user32.GetWindowLongW(self.hwnd, GWL_EXSTYLE)
-                new_style = current_style | WS_EX_TOPMOST
-                ctypes.windll.user32.SetWindowLongW(self.hwnd, GWL_EXSTYLE, new_style)
-                
-                # Method 3: Force foreground
-                ctypes.windll.user32.BringWindowToTop(self.hwnd)
-                ctypes.windll.user32.SetForegroundWindow(self.hwnd)
-                
-                # Method 4: Continuous topmost enforcer
-                import threading
-                def keep_on_top():
-                    while self.running:
-                        try:
-                            ctypes.windll.user32.SetWindowPos(
-                                self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
-                            )
-                            time.sleep(0.3)  # Check every 300ms
-                        except:
-                            break
-                
-                self.topmost_thread = threading.Thread(target=keep_on_top, daemon=True)
-                self.topmost_thread.start()
-                print("Always on top: ULTRA AGGRESSIVE MODE ACTIVATED")
-            
-            # IMPROVED: Better transparency handling
+            # Simple transparency handling
             if self.transparent_bg or self.click_through:
-                GWL_EXSTYLE = -20
-                WS_EX_LAYERED = 0x80000
-                WS_EX_TRANSPARENT = 0x20
-                WS_EX_TOPMOST = 0x8
-                
-                # Get current style
-                current_style = ctypes.windll.user32.GetWindowLongW(self.hwnd, GWL_EXSTYLE)
-                new_style = current_style | WS_EX_LAYERED | WS_EX_TOPMOST
-                
-                if self.click_through:
-                    new_style |= WS_EX_TRANSPARENT
-                
-                ctypes.windll.user32.SetWindowLongW(self.hwnd, GWL_EXSTYLE, new_style)
-                
-                # Set transparency level - MUCH MORE TRANSPARENT
-                alpha_value = int(255 * self.hud_opacity)
-                if self.transparent_bg:
-                    alpha_value = int(255 * 0.3)  # Very transparent background
-                
-                ctypes.windll.user32.SetLayeredWindowAttributes(
-                    self.hwnd, 0, alpha_value, 2  # LWA_ALPHA
-                )
-            
-            print(f"Windows features initialized: HWND={self.hwnd}")
-            print(f"Always on top: {self.always_on_top}")
-            print(f"Transparency: {self.transparent_bg}")
-            print(f"Click-through: {self.click_through}")
-            
+                try:
+                    if hasattr(self, 'hwnd') and self.hwnd:
+                        GWL_EXSTYLE = -20
+                        WS_EX_LAYERED = 0x80000
+                        WS_EX_TRANSPARENT = 0x20
+                        
+                        current_style = ctypes.windll.user32.GetWindowLongW(self.hwnd, GWL_EXSTYLE)
+                        new_style = current_style | WS_EX_LAYERED
+                        
+                        if self.click_through:
+                            new_style |= WS_EX_TRANSPARENT
+                        
+                        ctypes.windll.user32.SetWindowLongW(self.hwnd, GWL_EXSTYLE, new_style)
+                        
+                        if self.transparent_bg:
+                            # Set transparency
+                            ctypes.windll.user32.SetLayeredWindowAttributes(
+                                self.hwnd, 0, int(255 * self.hud_opacity), 0x02
+                            )
+                        print("✅ Transparency applied")
+                except Exception as e:
+                    print(f"❌ Transparency setup failed: {e}")
+                    
         except Exception as e:
-            print(f"Warning: Could not setup Windows features: {e}")
+            print(f"❌ Windows features setup failed: {e}")
+            print("⚠️ Continuing without Windows-specific features")
             import traceback
             traceback.print_exc()
     
