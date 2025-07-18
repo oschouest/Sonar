@@ -143,6 +143,7 @@ class AudioRadarHUD:
         
         # Initialize Windows-specific features
         self.hwnd = None
+        self.topmost_running = False  # Flag for aggressive topmost thread
         if HAS_WIN32:
             self._setup_windows_features()
         
@@ -192,96 +193,148 @@ class AudioRadarHUD:
         self.dragging = False
         self.drag_offset = (0, 0)
         
-        # Start topmost thread if always-on-top is enabled
-        if self.always_on_top and hasattr(self, 'hwnd') and self.hwnd:
-            self._start_topmost_thread()
-        
-    def _start_topmost_thread(self):
-        """Start background thread to keep window on top"""
-        import threading
-        
-        def keep_topmost():
-            while self.running:
-                try:
-                    if self.hwnd and self.always_on_top:
-                        HWND_TOPMOST = -1
-                        SWP_NOMOVE = 0x0002
-                        SWP_NOSIZE = 0x0001
-                        SWP_NOACTIVATE = 0x0010
-                        
-                        ctypes.windll.user32.SetWindowPos(
-                            self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
-                        )
-                    time.sleep(1.0)  # Check every second
-                except:
-                    break
-        
-        self.topmost_thread = threading.Thread(target=keep_topmost, daemon=True)
-        self.topmost_thread.start()
-        print("✅ Topmost thread started")
-        
     def _setup_windows_features(self):
-        """Setup Windows-specific features - SIMPLE ALWAYS-ON-TOP."""
+        """Setup Windows-specific features with aggressive always-on-top."""
         try:
             # Give pygame time to create the window
             pygame.display.flip()
+            time.sleep(0.1)  # Brief delay to ensure window is created
             
-            if self.always_on_top:
-                try:
-                    # Get window handle
-                    wm_info = pygame.display.get_wm_info()
-                    if 'window' in wm_info:
-                        self.hwnd = wm_info['window']
-                        print(f"✅ Got window handle: {self.hwnd}")
-                        
-                        # Simple always-on-top
-                        HWND_TOPMOST = -1
-                        SWP_NOMOVE = 0x0002
-                        SWP_NOSIZE = 0x0001
-                        
-                        result = ctypes.windll.user32.SetWindowPos(
-                            self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                            SWP_NOMOVE | SWP_NOSIZE
-                        )
-                        
-                        if result:
-                            print("✅ Always-on-top: ENABLED")
-                        else:
-                            print("❌ SetWindowPos failed")
-                    else:
-                        print("❌ No window handle in wm_info")
-                        
-                except Exception as e:
-                    print(f"❌ Always-on-top setup failed: {e}")
+            # Get window handle using pygame
+            wm_info = pygame.display.get_wm_info()
+            if 'window' in wm_info:
+                self.hwnd = wm_info['window']
+                print(f"✅ Got window handle: {self.hwnd}")
+            else:
+                print("❌ No window handle in wm_info")
+                return
+                
+            # Check if force_topmost is enabled in config
+            force_topmost = self.config.get('force_topmost', True)
             
-            # Simple transparency handling
+            if self.always_on_top and force_topmost:
+                self._setup_aggressive_topmost()
+            elif self.always_on_top:
+                self._setup_basic_topmost()
+            
+            # Setup transparency if requested
             if self.transparent_bg or self.click_through:
-                try:
-                    if hasattr(self, 'hwnd') and self.hwnd:
-                        GWL_EXSTYLE = -20
-                        WS_EX_LAYERED = 0x80000
-                        WS_EX_TRANSPARENT = 0x20
-                        
-                        current_style = ctypes.windll.user32.GetWindowLongW(self.hwnd, GWL_EXSTYLE)
-                        new_style = current_style | WS_EX_LAYERED
-                        
-                        if self.click_through:
-                            new_style |= WS_EX_TRANSPARENT
-                        
-                        ctypes.windll.user32.SetWindowLongW(self.hwnd, GWL_EXSTYLE, new_style)
-                        
-                        if self.transparent_bg:
-                            # Set transparency
-                            ctypes.windll.user32.SetLayeredWindowAttributes(
-                                self.hwnd, 0, int(255 * self.hud_opacity), 0x02
-                            )
-                        print("✅ Transparency applied")
-                except Exception as e:
-                    print(f"❌ Transparency setup failed: {e}")
-                    
+                self._setup_transparency()
+                
         except Exception as e:
             print(f"❌ Windows features setup failed: {e}")
+            
+    def _setup_aggressive_topmost(self):
+        """Setup aggressive always-on-top with persistent thread."""
+        try:
+            # Windows API constants
+            HWND_TOPMOST = -1
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            SWP_NOACTIVATE = 0x0010
+            
+            # Initial topmost call
+            result = ctypes.windll.user32.SetWindowPos(
+                self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+            )
+            
+            if result:
+                print("✅ Initial SetWindowPos successful")
+            else:
+                error_code = ctypes.windll.kernel32.GetLastError()
+                print(f"❌ Initial SetWindowPos failed - Error: {error_code}")
+            
+            # Steal focus once with SetForegroundWindow
+            focus_result = ctypes.windll.user32.SetForegroundWindow(self.hwnd)
+            if focus_result:
+                print("✅ SetForegroundWindow successful - Focus stolen")
+            else:
+                error_code = ctypes.windll.kernel32.GetLastError()
+                print(f"⚠️ SetForegroundWindow failed - Error: {error_code}")
+            
+            # Start persistent topmost thread
+            self.topmost_running = True
+            self.topmost_thread = threading.Thread(target=self._aggressive_topmost_thread, daemon=True)
+            self.topmost_thread.start()
+            print("✅ Aggressive topmost thread started")
+            
+        except Exception as e:
+            print(f"❌ Aggressive topmost setup failed: {e}")
+            
+    def _aggressive_topmost_thread(self):
+        """Persistent thread that enforces always-on-top every 500ms."""
+        HWND_TOPMOST = -1
+        SWP_NOMOVE = 0x0002
+        SWP_NOSIZE = 0x0001
+        SWP_NOACTIVATE = 0x0010
+        
+        while self.topmost_running:
+            try:
+                if self.hwnd:
+                    result = ctypes.windll.user32.SetWindowPos(
+                        self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+                    )
+                    
+                    if not result:
+                        error_code = ctypes.windll.kernel32.GetLastError()
+                        print(f"⚠️ Topmost refresh failed - Error: {error_code}")
+                        
+                time.sleep(0.5)  # Wait 500ms before next enforcement
+                
+            except Exception as e:
+                print(f"❌ Topmost thread error: {e}")
+                time.sleep(1.0)  # Wait longer on error
+                
+    def _setup_basic_topmost(self):
+        """Setup basic always-on-top (single call)."""
+        try:
+            HWND_TOPMOST = -1
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            
+            result = ctypes.windll.user32.SetWindowPos(
+                self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE
+            )
+            
+            if result:
+                print("✅ Basic always-on-top: ENABLED")
+            else:
+                error_code = ctypes.windll.kernel32.GetLastError()
+                print(f"❌ Basic SetWindowPos failed - Error: {error_code}")
+                
+        except Exception as e:
+            print(f"❌ Basic topmost setup failed: {e}")
+            
+    def _setup_transparency(self):
+        """Setup window transparency and click-through."""
+        try:
+            if not self.hwnd:
+                return
+                
+            GWL_EXSTYLE = -20
+            WS_EX_LAYERED = 0x80000
+            WS_EX_TRANSPARENT = 0x20
+            
+            current_style = ctypes.windll.user32.GetWindowLongW(self.hwnd, GWL_EXSTYLE)
+            new_style = current_style | WS_EX_LAYERED
+            
+            if self.click_through:
+                new_style |= WS_EX_TRANSPARENT
+            
+            ctypes.windll.user32.SetWindowLongW(self.hwnd, GWL_EXSTYLE, new_style)
+            
+            if self.transparent_bg:
+                # Set transparency
+                ctypes.windll.user32.SetLayeredWindowAttributes(
+                    self.hwnd, 0, int(255 * self.hud_opacity), 0x02
+                )
+            print("✅ Transparency applied")
+            
+        except Exception as e:
+            print(f"❌ Transparency setup failed: {e}")
             print("⚠️ Continuing without Windows-specific features")
             import traceback
             traceback.print_exc()
@@ -297,7 +350,8 @@ class AudioRadarHUD:
             "show_individual_channels": True,
             "show_direction_line": True,
             "auto_scale": True,
-            "theme": "dark"
+            "theme": "dark",
+            "force_topmost": True
         }
         
         config_path = "config.json"
