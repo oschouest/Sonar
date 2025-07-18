@@ -667,6 +667,12 @@ class AudioRadarHUD:
             try:
                 volumes = self.volume_queue.get_nowait()
                 
+                # Debug: Print volume data periodically
+                if updates_processed == 0 and self.frame_count % 60 == 0:  # Every second
+                    active_channels = {ch: vol for ch, vol in volumes.items() if vol > 0.1}
+                    if active_channels:
+                        print(f"🔊 Audio detected: {active_channels}")
+                
                 # Update current volumes and history
                 for channel, volume in volumes.items():
                     if channel in self.current_volumes:
@@ -734,50 +740,39 @@ class AudioRadarHUD:
             return self.colors["blip_low"]
     
     def _draw_channel_blip(self, channel: str, volume: float):
-        """Draw a volume blip optimized for high FPS."""
+        """Draw a volume blip using the proven working method from our test."""
         if volume < 0.01:  # Skip very quiet channels
             return
             
+        # Use the exact same angle calculation as our working test
         angle = self.CHANNEL_POSITIONS[channel]
         
-        # Calculate blip position
-        if self.auto_scale and self.max_volume_seen > 0:
-            normalized_volume = min(1.0, volume / self.max_volume_seen)
+        # Calculate position using the same method that worked in test
+        radius = int(self.radar_radius * 0.8)  # Place blips near edge like in test
+        angle_radians = math.radians(angle - 90)  # -90 to make 0° = North
+        blip_x = self.center[0] + radius * math.cos(angle_radians)
+        blip_y = self.center[1] + radius * math.sin(angle_radians)
+        
+        # Blip size based on volume (same as test)
+        blip_size = int(10 + volume * 20)
+        
+        # Get color - use the same approach as test
+        if volume > 0.7:
+            color = (255, 100, 100)  # Red for high volume
+        elif volume > 0.4:
+            color = (255, 255, 100)  # Yellow for medium volume
         else:
-            normalized_volume = min(1.0, volume)
+            color = (100, 255, 100)  # Green for low volume
         
-        # Blip distance from center (proportional to volume)
-        blip_distance = 15 + (self.radar_radius - 25) * normalized_volume
-        blip_x = self.center[0] + blip_distance * math.cos(math.radians(angle - 90))
-        blip_y = self.center[1] + blip_distance * math.sin(math.radians(angle - 90))
+        # Draw blip exactly like in working test
+        pygame.draw.circle(self.screen, color, (int(blip_x), int(blip_y)), blip_size)
         
-        # Blip size based on volume (smaller for HUD)
-        blip_size = int(3 + 10 * normalized_volume)
-        
-        # Get color
-        color = self._get_blip_color(volume)
-        
-        if self.performance_mode:
-            # Simple blip for high performance
-            pygame.draw.circle(self.screen, color, (int(blip_x), int(blip_y)), blip_size)
-            # Add simple glow ring
-            if blip_size > 5:
-                pygame.draw.circle(self.screen, color, (int(blip_x), int(blip_y)), blip_size + 2, 1)
-        else:
-            # Full glow effect for lower FPS mode
-            for i in range(2):  # Reduced glow layers
-                alpha = 255 - (i * 80)
-                glow_size = blip_size + i * 2
-                glow_color = (*color, max(50, alpha))
-                
-                # Create surface for alpha blending
-                glow_surface = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
-                pygame.draw.circle(glow_surface, glow_color, 
-                                 (glow_size, glow_size), glow_size)
-                
-                self.screen.blit(glow_surface, 
-                               (blip_x - glow_size, blip_y - glow_size),
-                               special_flags=pygame.BLEND_ALPHA_SDL2)
+        # Draw channel label like in test
+        if not self.performance_mode:
+            font = pygame.font.Font(None, 20)
+            text = font.render(channel, True, (255, 255, 255))
+            text_pos = (int(blip_x) - 10, int(blip_y) - 30)
+            self.screen.blit(text, text_pos)
             
             # Draw main blip
             pygame.draw.circle(self.screen, color, (int(blip_x), int(blip_y)), blip_size)
